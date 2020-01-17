@@ -1,12 +1,12 @@
-import { startOfHour, parseISO, isBefore, format, subHours } from 'date-fns';
-import pt from 'date-fns/locale/pt';
+import { isBefore, subHours } from 'date-fns';
 import User from '../models/User';
 import File from '../models/File';
 import Appointment from '../models/Appointment';
-import Notification from '../schemas/Notification';
 
 import CancellationMail from '../jobs/CancellationMail';
 import Queue from '../../lib/Queue';
+
+import CreateAppointmentService from '../services/CreateAppointmentService';
 
 class AppointmentController {
   /**
@@ -47,86 +47,10 @@ class AppointmentController {
   async store(req, res) {
     const { provider_id, date } = req.body;
 
-    /**
-     * Check if provider_id is a provider
-     * Verifica se provider_id é um provedor.
-     */
-    const checkIsProvider = await User.findOne({
-      where: { id: provider_id, provider: true },
-    });
-
-    if (!checkIsProvider) {
-      return res
-        .status(401)
-        .json({ error: 'You can only create appointments with providers.' });
-    }
-
-    /**
-     * Provider cannot schedule for himself.
-     * Prestador não pode agendar para ele mesmo.
-     */
-    if (req.userId === provider_id) {
-      return res
-        .status(401)
-        .json({ error: 'You can not to add appointment to yourself.' });
-    }
-
-    /**
-     * Just keep the time, zeroing the minutes and seconds.
-     * Mantem apenas a hora, zerando os minutos e segundos.
-     */
-    const hourStart = startOfHour(parseISO(date));
-
-    /**
-     * Checks if the time to be logged has passed.
-     * Verifica se a hora a ser registrada já passou.
-     */
-    if (isBefore(hourStart, new Date())) {
-      return res.status(400).json({ error: 'Past dates are not permited.' });
-    }
-
-    /**
-     * Check date availability.
-     * Verifica a disponibilidade da data.
-     */
-    const checkAvailability = await Appointment.findOne({
-      where: {
-        provider_id,
-        canceled_at: null,
-        date: hourStart,
-      },
-    });
-
-    if (checkAvailability) {
-      return res
-        .status(400)
-        .json({ error: 'Appointment date is not available.' });
-    }
-
-    /**
-     * Stores in the database.
-     * Armazena no banco de dados.
-     */
-    const appointment = await Appointment.create({
-      user_id: req.userId,
+    const appointment = await CreateAppointmentService.run({
       provider_id,
+      user_id: req.userId,
       date,
-    });
-
-    /**
-     * Notify appointment provider.
-     * Notificar prestador de serviço.
-     */
-    const user = await User.findByPk(req.userId); // Recuperando nome do usuário
-    const formattedDate = format(
-      hourStart,
-      "'dia' dd 'de' MMMM', às' H:mm'h'",
-      { locale: pt }
-    );
-
-    await Notification.create({
-      content: `Novo agendamento de ${user.name} para ${formattedDate}`,
-      user: provider_id,
     });
 
     return res.json(appointment);
