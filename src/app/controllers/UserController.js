@@ -1,6 +1,8 @@
 import User from '../models/User';
 import File from '../models/File';
 
+import Cache from '../../lib/Cache';
+
 class UserController {
   async store(req, res) {
     const userExists = await User.findOne({ where: { email: req.body.email } });
@@ -10,6 +12,12 @@ class UserController {
     }
 
     const { id, name, email, provider } = await User.create(req.body);
+
+    // Clear cache when new provider registration appears.
+    // Apagar cache quando surgir novo cadastro de provider.
+    if (provider) {
+      await Cache.invalidate('providers');
+    }
 
     return res.json({
       id,
