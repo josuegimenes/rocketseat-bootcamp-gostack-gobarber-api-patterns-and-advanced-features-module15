@@ -1,5 +1,5 @@
 import { startOfHour, parseISO, isBefore, format } from 'date-fns';
-import pt from 'date-fns/locale/pt';
+import pt from 'date-fns/locale/pt-BR';
 
 import User from '../models/User';
 import Appointment from '../models/Appointment';
